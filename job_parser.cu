@@ -125,21 +125,6 @@ void sharpen_serial(unsigned char* image, int width, int height) {
     free(temp);
 }
 
-void edge_serial(unsigned char* image, int width, int height) {
-    unsigned char* gray_image = (unsigned char*)malloc(width * height * 3);
-    memcpy(gray_image, image, width * height * 3);
-    grayscale_serial(gray_image, width, height);
-    unsigned char* temp = (unsigned char*)malloc(width * height * 3);
-    memcpy(temp, gray_image, width * height * 3);
-    for (int i = width; i < width * (height - 1); i++) {
-        int gx = temp[i * 3 - 3] - temp[i * 3 + 3];
-        int gy = temp[(i - width) * 3] - temp[(i + width) * 3];
-        int edge = sqrtf(gx * gx + gy * gy);
-        image[i * 3] = image[i * 3 + 1] = image[i * 3 + 2] = (edge < 0) ? 0 : (edge > 255 ? 255 : edge);
-    }
-    free(gray_image);
-    free(temp);
-}
 
 // CUDA Kernels
 __global__ void brightness_kernel(unsigned char* image, int width, int height, int brightness) {
@@ -174,18 +159,6 @@ __global__ void sharpen_kernel(unsigned char* image, int width, int height, unsi
     }
 }
 
-__global__ void edge_kernel(unsigned char* image, int width, int height, unsigned char* temp) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx > width && idx < width * (height - 1)) {
-        int r = temp[idx * 3], g = temp[idx * 3 + 1], b = temp[idx * 3 + 2];
-        int gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        int gx = gray - (temp[(idx + 1) * 3] * 0.299 + temp[(idx + 1) * 3 + 1] * 0.587 + temp[(idx + 1) * 3 + 2] * 0.114);
-        int gy = (temp[(idx - width) * 3] * 0.299 + temp[(idx - width) * 3 + 1] * 0.587 + temp[(idx - width) * 3 + 2] * 0.114) -
-                 (temp[(idx + width) * 3] * 0.299 + temp[(idx + width) * 3 + 1] * 0.587 + temp[(idx + width) * 3 + 2] * 0.114);
-        int edge = sqrtf(gx * gx + gy * gy);
-        image[idx * 3] = image[idx * 3 + 1] = image[idx * 3 + 2] = min(max(edge, 0), 255);
-    }
-}
 
 // Main program
 int main(int argc, char* argv[]) {
@@ -241,7 +214,6 @@ int main(int argc, char* argv[]) {
         {"Grayscale", grayscale_serial, NULL, (void (*)(unsigned char*, int, int, unsigned char*))grayscale_kernel, "grayscale_out.png", true},
         {"Blurring", blur_serial, NULL, blur_kernel, "blur_out.png", false},
         {"Sharpening", sharpen_serial, NULL, sharpen_kernel, "sharpen_out.png", false},
-        {"Edge Detection", edge_serial, NULL, edge_kernel, "edge_out.png", true}
     };
 
     int brightness = 50;
